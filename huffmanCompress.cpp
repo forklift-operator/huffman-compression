@@ -31,29 +31,24 @@ class huffmanCompress
 {
 private:
     Node *root;
-    std::map<char, std::string> charWithCode;
     minHeap<Node *, CompareNode> pq;
 
-    void generateCodes(Node *root, const std::string &code);
+    void buildTree(const std::string &text, std::map<char, std::string> &charWithCode);
+    void generateCodes(Node *root, const std::string &code, std::map<char, std::string> &charWithCode);
     void freeTree(Node *node);
 
     int binary_to_decimal(const std::string &in);
-    std::string decimal_to_binary(int in, int bit_length = 0);
 
 public:
-    huffmanCompress() : root(nullptr) {} // make a constructor with the msg and inside of it do all the logic of building the tree generating the codes
+    huffmanCompress() : root(nullptr) {}
 
-    void buildTree(const std::string text);
+    void compressFile(const std::string &);
+    void decodeFile(const std::string &);
 
-    void compressFile(const std::string &inputFile, const std::string &outputFilePath);
-    void decode(const std::string &, const std::string &);
-
-    void printCodes();
-
-    ~huffmanCompress() { freeTree(root); }; // stack overflow
+    ~huffmanCompress() { freeTree(root); };
 };
 
-void huffmanCompress::buildTree(const std::string text)
+void huffmanCompress::buildTree(const std::string &text, std::map<char, std::string> &charWithCode)
 {
     // set the freqs
     std::vector<int> freq(256, 0);
@@ -93,15 +88,15 @@ void huffmanCompress::buildTree(const std::string text)
 
     // generate the codes from the root of the huffman tree
     root = huffmanTree.extractMin();
-    generateCodes(root, "");
+    generateCodes(root, "", charWithCode);
 }
 
-void huffmanCompress::generateCodes(Node *node, const std::string &code)
+void huffmanCompress::generateCodes(Node *node, const std::string &code, std::map<char, std::string> &charWithCode)
 {
     if (!node)
         return;
 
-    generateCodes(node->left, code + "0");
+    generateCodes(node->left, code + "0", charWithCode);
 
     if (!node->left && !node->right)
     {
@@ -109,32 +104,44 @@ void huffmanCompress::generateCodes(Node *node, const std::string &code)
         charWithCode[node->ch] = code;
     }
 
-    generateCodes(node->right, code + "1");
+    generateCodes(node->right, code + "1", charWithCode);
 }
 
-// make this to the tree class and fix name
-int next_multiple_of_eight(int n)
+// for debuging
+void printCodes(std::map<char, std::string> &charWithCode)
 {
-    return (n + 7) & ~7;
+    for (auto pair : charWithCode)
+    {
+        std::cout << pair.first << " : " << pair.second << std::endl;
+    }
 }
 
-void huffmanCompress::compressFile(const std::string &inputFilePath, const std::string &outputFilePath)
+// for debuging
+void printCodes(std::map<std::string, char> &CodeWithChar)
+{
+    for (auto pair : CodeWithChar)
+    {
+        std::cout << pair.second << " : " << pair.first << std::endl;
+    }
+}
+
+void huffmanCompress::compressFile(const std::string &inputFilePath)
 {
 
     std::ifstream input(inputFilePath, std::ios::binary);
     if (!input.is_open())
     {
-        std::cout << "Failed to open file: " << inputFilePath << std::endl;
+        std::cout << "Failed to open input file: " << inputFilePath << std::endl;
         return;
     }
-    std::ofstream output(outputFilePath, std::ios::binary);
+    std::ofstream output(inputFilePath + ".huff", std::ios::binary);
     if (!output.is_open())
     {
-        std::cout << "Failed to open file: " << outputFilePath << std::endl;
+        std::cout << "Failed to open output file: " << inputFilePath + ".huff" << std::endl;
         return;
     }
 
-    // Basic reading from file
+    // basic reading from file
     std::string data;
     char c;
     while (input.get(c))
@@ -144,44 +151,45 @@ void huffmanCompress::compressFile(const std::string &inputFilePath, const std::
 
     input.close();
 
-    // Build a huffman tree with the data in the file
-    buildTree(data);
+    // map for the chars with their respective codes
+    std::map<char, std::string> charWithCode;
 
-    std::string encodedData;
+    // build a huffman tree with the data in the file
+    buildTree(data, charWithCode);
+
+    std::string encoded_data;
     for (char c : data)
-        encodedData += charWithCode[c];
+        encoded_data += charWithCode[c];
 
-    // Attaching the metadata
+    // attaching the metadata
     std::string in = "", s = "";
 
-    in += (char)pq.size(); // the first byte saves the size of the priority queue
-    minHeap<Node *, CompareNode> temp(pq);
-    while (!temp.empty())
-    { // get all characters and their huffman codes for output
-        Node *current = temp.extractMin();
-        in += current->ch;
-        in += (char)current->code.size();
-
-        s.assign(next_multiple_of_eight(pq.size() - 1) - current->code.size(), '0');
-        s += '1';
-        s.append(current->code);
-
-        in += (char)binary_to_decimal(s); // needs to account for the cases where the s is more than 8 bits with below approach
-        // in += (char)binary_to_decimal(s.substr(0, 8));
-        s = s.substr(8);
-    }
-    s.clear();
-
-    in += (char)data.size();
-    in += (char)encodedData.size();
-    while (!encodedData.empty())
+    in += (char)pq.size();
+    while (!pq.empty())
     {
-        if (encodedData.size() < 8)
-        {
-            encodedData.append(8 - encodedData.size(), '0');
-        }
-        in += (char)binary_to_decimal(encodedData.substr(0, 8));
-        encodedData = encodedData.substr(8);
+        Node *current = pq.extractMin();
+        char ch = current->ch;
+        in += ch;
+
+        int code_size = charWithCode[current->ch].size();
+        in += (char)code_size;
+
+        s = charWithCode[current->ch];
+        in += s;
+    }
+
+    // std::cout << encoded_data << std::endl;
+
+    // padding the encoded data to be a multiple of 8
+    int padding = (8 - encoded_data.size() % 8) % 8;
+    in += (char)padding;
+    std::string padded_encoded = std::string(padding, '0');
+    padded_encoded += encoded_data;
+    encoded_data = padded_encoded;
+    while (!encoded_data.empty())
+    {
+        in += (char)binary_to_decimal(encoded_data.substr(0, 8));
+        encoded_data = encoded_data.substr(8);
     }
 
     std::cout << "Size before compression: " << data.size() << " bytes" << std::endl;
@@ -190,19 +198,22 @@ void huffmanCompress::compressFile(const std::string &inputFilePath, const std::
     output.write(in.c_str(), in.size());
 
     output.close();
-
     // std::cout << "The Huffman tree of the file" << std::endl;
-    // printCodes();
+    // printCodes(charWithCode);
+    std::cout << "Finished compression!" << std::endl;
 }
 
-void huffmanCompress::decode(const std::string &inputFilePath, const std::string &outputFilePath)
+void huffmanCompress::decodeFile(const std::string &inputFilePath)
 {
+
     std::ifstream input(inputFilePath, std::ios::binary);
     if (!input.is_open())
     {
         std::cout << "Failed to open file: " << inputFilePath << std::endl;
         return;
     }
+
+    std::string outputFilePath = "huff_" + inputFilePath.substr(0, inputFilePath.size() - 5);
 
     std::ofstream output(outputFilePath, std::ios::binary);
     if (!output.is_open())
@@ -211,74 +222,89 @@ void huffmanCompress::decode(const std::string &inputFilePath, const std::string
         return;
     }
 
-    unsigned char size;
-    input.read((char *)&size, 1);
+    char num_unique;
+    input.get(num_unique);
+    // std::cout << (int)num_unique << std::endl;
 
+    // building a tree from the metadata
     std::map<std::string, char> CodeWithChar;
-    // building a tree
-    for (size_t i = 0; i < size; i++)
+    for (size_t i = 0; i < num_unique; i++)
     {
-        char ch, ch_size, ch_code;
-        input.read(&ch, 1);
-        input.read(&ch_size, 1);
-        input.read(&ch_code, 1);
+        char ch;
+        char ch_code_size;
+        std::string ch_code = "";
 
-        int actual_code = ch_code ^ (1 << ch_size);
-        int bit_length = (unsigned char)ch_size;
-        std::string code = decimal_to_binary(actual_code, bit_length);
-        CodeWithChar[code] = ch;
+        // input >> ch;
+        input.get(ch);
+        // std::cout << ch << std::endl;
+        input.get(ch_code_size);
+
+        for (size_t i = 0; i < ch_code_size; i++)
+        {
+            char bit;
+            input >> bit;
+            ch_code += bit;
+        }
+
+        CodeWithChar[ch_code] = ch;
     }
 
-    unsigned char data_size, usable_bits;
-    input.read((char *)&data_size, 1);
-    input.read((char *)&usable_bits, 1);
+    char padding;
+    input >> padding;
 
-    std::string encodedData;
+    std::string encoded_data;
     char byte;
     while (input.get(byte))
     {
-        encodedData += std::bitset<8>(byte).to_string();
+        encoded_data += std::bitset<8>(byte).to_string();
     }
-    // std::cout << encodedData << std::endl;
+
+    // remove the padding
+    encoded_data = encoded_data.substr(padding);
 
     std::string data_decoded = "";
-    for (size_t i = 0; i < data_size;)
+
+    size_t i = 0;
+    while (i < encoded_data.size())
     {
         std::string code = "";
-        for (size_t j = i; j < usable_bits; j++)
+        bool found = false;
+
+        while (i < encoded_data.size())
         {
-            code += encodedData[j];
+            code += encoded_data[i];
+            i++;
+
+            // check if the code exists in the map
             if (CodeWithChar.find(code) != CodeWithChar.end())
             {
                 data_decoded += CodeWithChar[code];
-                i += code.size();
-                code.clear();
+                found = true;
+                break;
             }
         }
-    }
 
+        if (!found)
+        {
+            if (binary_to_decimal(code) == 0)
+                break;
+        }
+    }
 
     output.write(data_decoded.c_str(), data_decoded.size());
 
     output.close();
     input.close();
-    
-    if (data_decoded.size() == data_size)
-    {
-        std::cout << "Decoding successful!" << std::endl;
-    }
-    else
-    {
-        std::runtime_error("Decoding failed");
-    }
-}
 
-void huffmanCompress::printCodes()
-{
-    for (auto pair : charWithCode)
-    {
-        std::cout << pair.first << " : " << pair.second << std::endl;
-    }
+    // Validation
+    // if (data_decoded.size() == data_decoded.size()) // fix this
+    // {
+    //     std::cout << "Decoding successful!" << std::endl;
+    // }
+    // else
+    // {
+    //     std::runtime_error("Decoding failed");
+    // }
 }
 
 void huffmanCompress::freeTree(Node *node)
@@ -300,29 +326,12 @@ int huffmanCompress::binary_to_decimal(const std::string &in)
     return result;
 }
 
-std::string huffmanCompress::decimal_to_binary(int in, int bit_length)
-{
-    std::string result = "";
-    while (in)
-    {
-        result = (char)('0' + (in % 2)) + result;
-        in /= 2;
-    }
-    
-    if (bit_length > 0 && result.size() < bit_length)
-    {
-        result = std::string(bit_length - result.size(), '0') + result;
-    }
-    return result;
-}
-
 int main()
 {
     huffmanCompress h;
-    // h.buildTree("AAABBBBBCCCCCCDDDDEE");
 
-    // h.printCodes();
-    h.compressFile("test.txt", "test.huff");
-    h.decode("test.huff", "test_decoded.txt");
+    h.compressFile("minHeap.cpp");
+    h.decodeFile("minHeap.cpp.huff");
+
     return 0;
 }
