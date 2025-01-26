@@ -9,6 +9,7 @@
 #include <map>
 #include <unordered_map>
 #include <stdexcept>
+
 struct Node
 {
     int freq;
