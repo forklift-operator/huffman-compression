@@ -1,58 +1,4 @@
-#include <string>
-#include <vector>
-#include <iostream>
-#include "minHeap.cpp"
-#include <bitset>
-#include <fstream>
-#include <filesystem>
-#include <map>
-#include <unordered_map>
-#include <stdexcept>
-struct Node
-{
-    int freq;
-    Node *left;
-    Node *right;
-    std::string code;
-    char ch = 0;
-    Node(char ch, int freq) : ch(ch), freq(freq), left(nullptr), right(nullptr) {}
-    Node(char ch, int freq, Node *left, Node *right) : ch(ch), freq(freq), left(left), right(right) {}
-};
-
-struct CompareNode
-{
-    bool operator()(const Node *lhs, const Node *rhs) const
-    {
-        return lhs->freq < rhs->freq;
-    }
-};
-
-class huffmanCompress
-{
-private:
-    Node *root;
-    minHeap<Node *, CompareNode> pq;
-
-    std::string compressFileUtil(const std::string &);
-    size_t decodeFileUtil(const std::string &, const std::string &, int);
-
-    void buildTree(const std::string &text, std::map<char, std::string> &charWithCode);
-    void generateCodes(Node *root, const std::string &code, std::map<char, std::string> &charWithCode);
-    void freeTree(Node *node);
-
-    int binary_to_decimal(const std::string &in);
-
-public:
-    huffmanCompress() : root(nullptr) {}
-
-    void compressFile(const std::string &);
-    void decodeFile(const std::string &);
-
-    void compressFolder(const std::string &);
-    void decodeFolder(const std::string &);
-
-    ~huffmanCompress() { freeTree(root); };
-};
+#include "huffmanCompress.h"
 
 void huffmanCompress::buildTree(const std::string &text, std::map<char, std::string> &charWithCode)
 {
@@ -155,9 +101,11 @@ void huffmanCompress::compressFile(const std::string &inputFilePath)
 
     input.close();
 
-    if (data.empty()) {
+    if (data.empty())
+    {
         std::ofstream output(inputFilePath + ".huff", std::ios::binary);
-        if (!output.is_open()) {
+        if (!output.is_open())
+        {
             throw std::runtime_error("Failed to open output file!");
         }
 
@@ -175,9 +123,11 @@ void huffmanCompress::compressFile(const std::string &inputFilePath)
     buildTree(data, charWithCode);
 
     // check if there is just one type of char in the file
-    if (charWithCode.size() == 1) {
-        auto& entry = *charWithCode.begin();
-        if (entry.second.empty()) {
+    if (charWithCode.size() == 1)
+    {
+        auto &entry = *charWithCode.begin();
+        if (entry.second.empty())
+        {
             entry.second = "0"; // Fix empty code
         }
     }
@@ -203,8 +153,6 @@ void huffmanCompress::compressFile(const std::string &inputFilePath)
         in += s;
     }
 
-    std::cout << encoded_data << std::endl;
-
     // padding the encoded data to be a multiple of 8
     int padding = (8 - encoded_data.size() % 8) % 8;
     in += (char)padding;
@@ -217,18 +165,16 @@ void huffmanCompress::compressFile(const std::string &inputFilePath)
         encoded_data = encoded_data.substr(8);
     }
 
-    std::cout << "Size before compression: " << data.size() << " bytes" << std::endl;
-    std::cout << "Size after compression: " << in.size() << " bytes" << std::endl;
-
     output.write(in.c_str(), in.size());
-
     output.close();
-    // std::cout << "The Huffman tree of the file" << std::endl;
-    // printCodes(charWithCode);
-    std::cout << "Finished compression!" << std::endl;
+
+    std::cout << "Compressed: " + inputFilePath << std::endl;
+    std::cout << "Size before compression: " << data.size() << " bytes" << std::endl;
+    std::cout << "Size after compression: " << in.size() << " bytes" << std::endl
+              << std::endl;
 }
 
-void huffmanCompress::decodeFile(const std::string &inputFilePath)
+void huffmanCompress::decompressFile(const std::string &inputFilePath)
 {
 
     std::ifstream input(inputFilePath, std::ios::binary);
@@ -248,16 +194,16 @@ void huffmanCompress::decodeFile(const std::string &inputFilePath)
     char num_unique;
     input.get(num_unique);
     // if the file is empty
-    if (num_unique == 0)  
+    if (num_unique == 0)
     {
         std::string outputFilePath = "huff_" + inputFilePath.substr(0, inputFilePath.size() - 5);
         std::ofstream output(outputFilePath, std::ios::binary);
-        if (!output.is_open()) {
+        if (!output.is_open())
+        {
             throw std::runtime_error("Failed to create empty output file!");
         }
-        
+
         output.close();
-        std::cout << "Decoded empty file." << std::endl;
         return;
     }
 
@@ -300,7 +246,7 @@ void huffmanCompress::decodeFile(const std::string &inputFilePath)
     // remove the padding
     encoded_data = encoded_data.substr(padding);
 
-    std::string data_decoded = "";
+    std::string data_decompressd = "";
 
     size_t i = 0;
     while (i < encoded_data.size())
@@ -316,7 +262,7 @@ void huffmanCompress::decodeFile(const std::string &inputFilePath)
             // check if the code exists in the map
             if (CodeWithChar.find(code) != CodeWithChar.end())
             {
-                data_decoded += CodeWithChar[code];
+                data_decompressd += CodeWithChar[code];
                 found = true;
                 break;
             }
@@ -329,13 +275,15 @@ void huffmanCompress::decodeFile(const std::string &inputFilePath)
         }
     }
 
-    output.write(data_decoded.c_str(), data_decoded.size());
+    output.write(data_decompressd.c_str(), data_decompressd.size());
 
     output.close();
     input.close();
 
+    std::cout << "Decompressed: " << outputFilePath << std::endl;
+
     // Validation
-    // if (data_decoded.size() == data_decoded.size()) // fix this
+    // if (data_decompressd.size() == data_decompressd.size()) // fix this
     // {
     //     std::cout << "Decoding successful!" << std::endl;
     // }
@@ -375,12 +323,14 @@ std::string huffmanCompress::compressFileUtil(const std::string &inputFilePath)
 
     // build a huffman tree with the data in the file
     buildTree(data, charWithCode);
-    
+
     // check if there is just one type of char in the file
-    if (charWithCode.size() == 1) {
-        auto& entry = *charWithCode.begin();
-        if (entry.second.empty()) {
-            entry.second = "0"; 
+    if (charWithCode.size() == 1)
+    {
+        auto &entry = *charWithCode.begin();
+        if (entry.second.empty())
+        {
+            entry.second = "0";
         }
     }
 
@@ -405,9 +355,15 @@ std::string huffmanCompress::compressFileUtil(const std::string &inputFilePath)
         in += s;
     }
 
-    // include the encoded data size before the padding
-    int encoded_data_size = encoded_data.size() + 1;
-    std::string test;
+    // original size of the file for validation (8 bytes)
+    // uint64_t original_size = data.size();
+    // for (int i = 0; i < 8; ++i)
+    // {
+    //     in += (char)(original_size >> (i * 8));
+    // }
+
+    // include the encoded data size including the padding (4 bytes)
+    uint32_t encoded_data_size = encoded_data.size() + 1;
     for (int i = 0; i < 4; ++i)
     {
         in += (char)(encoded_data_size >> (i * 8));
@@ -425,12 +381,12 @@ std::string huffmanCompress::compressFileUtil(const std::string &inputFilePath)
         encoded_data = encoded_data.substr(8);
     }
 
-    std::cout << "Finished compression! " << inputFilePath << std::endl;
+    std::cout << "Compressed: " << inputFilePath << std::endl;
 
     return in;
 }
 // the inputFilePath is the string with all the compressed code in it
-size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const std::string &outputFilePath, int pos = 0)
+size_t huffmanCompress::decompressFileUtil(const std::string &compressedData, const std::string &outputFilePath, int pos = 0)
 {
 
     std::ofstream output(outputFilePath, std::ios::binary);
@@ -443,12 +399,12 @@ size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const 
     char num_unique = compressedData[pos];
     pos++;
 
-    if (num_unique == 0)  
+    if (num_unique == 0)
     {
         output.close();
         return pos;
     }
-    
+
     // building a tree from the metadata
     std::map<std::string, char> CodeWithChar;
     for (size_t i = 0; i < num_unique; i++)
@@ -462,9 +418,6 @@ size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const 
         std::string ch_code = compressedData.substr(pos, ch_code_size);
         pos += ch_code_size;
 
-        // std::cout << "char: " << ch;
-        // std::cout << ch_code << std::endl;
-
         CodeWithChar[ch_code] = ch;
     }
 
@@ -475,23 +428,24 @@ size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const 
     }
     pos += 4;
 
+    // read the original size of the file for validation
+    // uint64_t original_size = 0;
+    // for (int i = 0; i < 8; ++i)
+    // {
+    //     original_size |= (static_cast<uint32_t>(compressedData[pos + i]) & 0xFF) << (i * 8);
+    // }
+    // pos += 8;
+
     // next multiple of 8
     encoded_data_size = (encoded_data_size + 7) / 8 * 8;
 
-    // std::cout << "THE ENCODED SIZE: " << encoded_data_size << std::endl;
-
     char padding = compressedData[pos];
-    // std::cout << "PADDING: " << (int)padding << std::endl;
-    // pos++;
 
-    // convert the encoded data to binary
     int to = 1 + pos + encoded_data_size / 8;
-    // std::cout << "TO WHERE i: " << to << std::endl;
     std::string encoded_data;
     while (pos < to)
     {
         char byte = compressedData[pos];
-        // std::cout << "BYTE AFTER : " << byte << std::endl;
         pos++;
 
         encoded_data += std::bitset<8>(byte).to_string();
@@ -501,7 +455,7 @@ size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const 
     encoded_data = encoded_data.substr(8);
     encoded_data = encoded_data.substr(padding);
 
-    std::string data_decoded = "";
+    std::string data_decompressd = "";
 
     size_t i = 0;
     while (i < encoded_data.size())
@@ -517,7 +471,7 @@ size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const 
             // check if the code exists in the map
             if (CodeWithChar.find(code) != CodeWithChar.end())
             {
-                data_decoded += CodeWithChar[code];
+                data_decompressd += CodeWithChar[code];
                 found = true;
                 break;
             }
@@ -530,11 +484,19 @@ size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const 
         }
     }
 
-    // std::cout << data_decoded << std::endl;
+    // if (original_size == data_decompressd.size()+1)
+    // {
+    //     std::cout << "Decoding successful! " << std::endl;
+    // }
+    // else
+    // {
+    //     // throw std::runtime_error("Decoding failed for " + outputFilePath);
+    // }
 
-    output.write(data_decoded.c_str(), data_decoded.size());
-
+    output.write(data_decompressd.c_str(), data_decompressd.size());
     output.close();
+
+    std::cout << "Decompressed: " << outputFilePath << std::endl;
 
     return pos;
 }
@@ -562,17 +524,20 @@ void huffmanCompress::compressFolder(const std::string &inputFolder)
 {
     std::string header;
 
+    uint64_t size = 0;
+
     for (const auto &entry : std::filesystem::recursive_directory_iterator(inputFolder))
     {
         std::string relative_path = std::filesystem::relative(entry.path(), inputFolder).string();
 
         if (entry.is_regular_file())
         {
-            // can actually make it include just the name of the file and then when decomp just use how many files are in the folder
             std::string compressed_data = compressFileUtil(entry.path().string());
 
             header += ">" + relative_path + "|";
             header += compressed_data;
+
+            size += std::filesystem::file_size(entry.path());
         }
         else if (entry.is_directory())
         {
@@ -585,10 +550,15 @@ void huffmanCompress::compressFolder(const std::string &inputFolder)
     outFile.write(header.c_str(), header.size());
     outFile.close();
 
-    std::cout << "Finished compressing" << std::endl;
+    uint64_t newSize = std::filesystem::file_size(inputFolder + ".huff");
+
+    std::cout << "Compression complete! " << std::endl;
+    std::cout << "Size before compression: " << size << " bytes" << std::endl;
+    std::cout << "Size after compression: " << newSize << " bytes" << std::endl
+              << std::endl;
 }
 
-void huffmanCompress::decodeFolder(const std::string &inputFolder)
+void huffmanCompress::decompressFolder(const std::string &inputFolder)
 {
     std::ifstream input(inputFolder, std::ios::binary);
     if (!input)
@@ -619,7 +589,6 @@ void huffmanCompress::decodeFolder(const std::string &inputFolder)
         pos = pathEnd + 1;
 
         std::string fullpath = folderName + "\\" + relativePath;
-        std::cout << fullpath << std::endl;
 
         // dictionary
         if (type == '<')
@@ -628,22 +597,138 @@ void huffmanCompress::decodeFolder(const std::string &inputFolder)
         }
         if (type == '>')
         {
-            pos = decodeFileUtil(compressed_data, fullpath, pos);
+            pos = decompressFileUtil(compressed_data, fullpath, pos);
         }
+    }
+    std::cout << "Decompression complete! " << std::endl
+              << std::endl;
+}
+
+void huffmanCompress::info(const std::string &inputFilePath)
+{
+    std::ifstream input(inputFilePath, std::ios::binary);
+    if (!input)
+    {
+        throw std::runtime_error("Failed to open compressed file for reading.");
+    }
+
+    std::string compressed_data;
+    char c;
+    while (input.get(c))
+    {
+        compressed_data += c;
+    }
+
+    std::cout << "Info for: " << inputFilePath << "\n";
+    std::cout << "----------------------------------------\n";
+
+    int pos = 0;
+    while (pos < compressed_data.size())
+    {
+        char type = compressed_data[pos];
+        pos++;
+
+        size_t pathEnd = compressed_data.find('|', pos);
+        if (pathEnd == std::string::npos)
+        {
+            throw std::runtime_error("Invalid compressed file format.");
+        }
+
+        std::string relativePath = compressed_data.substr(pos, pathEnd - pos);
+        pos = pathEnd + 1;
+
+        if (type == '<')
+        {
+            std::cout << "[Dir] " << relativePath << "\n";
+        }
+        else if (type == '>')
+        {
+            std::cout << "[File] " << relativePath << "\n";
+
+            // Extract the compressed data size
+            uint32_t encoded_data_size = 0;
+            for (int i = 0; i < 4; ++i)
+            {
+                encoded_data_size |= (static_cast<uint32_t>(compressed_data[pos + i]) & 0xFF) << (i * 8);
+            }
+            pos += 4;
+
+            // Skip the padding and compressed data
+            char padding = compressed_data[pos];
+            pos++;
+
+            int to = pos + (encoded_data_size + 7) / 8;
+            pos = to;
+
+            std::cout << "  Compressed Size: " << (encoded_data_size + 7) / 8 << " bytes\n";
+        }
+    }
+
+    std::cout << "----------------------------------------\n";
+    std::cout << "Total Compressed File Size: " << compressed_data.size() << " bytes\n";
+}
+
+void displayMenu()
+{
+    std::cout << "Huffman Compression\n";
+    std::cout << "1. Compress File\n";
+    std::cout << "2. Decompress File\n";
+    std::cout << "3. Compress Folder\n";
+    std::cout << "4. Decompress Folder\n";
+    std::cout << "5. Info\n";
+    std::cout << "6. Exit\n";
+    std::cout << "Enter your choice: ";
+}
+
+void handleUserChoice(int choice, huffmanCompress &h)
+{
+    std::string path;
+    switch (choice)
+    {
+    case 1:
+        std::cout << "Enter the file path to compress: ";
+        std::cin >> path;
+        h.compressFile(path);
+        break;
+    case 2:
+        std::cout << "Enter the file path to decompress: ";
+        std::cin >> path;
+        h.decompressFile(path);
+        break;
+    case 3:
+        std::cout << "Enter the folder path to compress: ";
+        std::cin >> path;
+        h.compressFolder(path);
+        break;
+    case 4:
+        std::cout << "Enter the folder path to decompress: ";
+        std::cin >> path;
+        h.decompressFolder(path);
+        break;
+    case 5:
+        std::cout << "Enter the folder path: ";
+        std::cin >> path;
+        h.info(path);
+        break;
+    case 6:
+        std::cout << "Exiting...\n";
+        break;
+    default:
+        std::cout << "Invalid choice. Please try again.\n";
+        break;
     }
 }
 
 int main()
 {
     huffmanCompress h;
-    // h.buildTree("AAABBBBBCCCCCCDDDDEE");
-
-    // h.printCodes();
-    // h.compressFile("test.txt");
-    // h.decodeFile("test.txt.huff");
-
-    h.compressFolder("test");
-    h.decodeFolder("test.huff");
+    int choice;
+    do
+    {
+        displayMenu();
+        std::cin >> choice;
+        handleUserChoice(choice, h);
+    } while (choice != 6);
 
     return 0;
 }
