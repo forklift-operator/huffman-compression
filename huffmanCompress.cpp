@@ -155,11 +155,32 @@ void huffmanCompress::compressFile(const std::string &inputFilePath)
 
     input.close();
 
+    if (data.empty()) {
+        std::ofstream output(inputFilePath + ".huff", std::ios::binary);
+        if (!output.is_open()) {
+            throw std::runtime_error("Failed to open output file!");
+        }
+
+        std::string emptyMarker(1, 0); // num_unique = 0
+        emptyMarker += (char)0;        // padding = 0
+        output.write(emptyMarker.c_str(), emptyMarker.size());
+        output.close();
+        return;
+    }
+
     // map for the chars with their respective codes
     std::map<char, std::string> charWithCode;
 
     // build a huffman tree with the data in the file
     buildTree(data, charWithCode);
+
+    // check if there is just one type of char in the file
+    if (charWithCode.size() == 1) {
+        auto& entry = *charWithCode.begin();
+        if (entry.second.empty()) {
+            entry.second = "0"; // Fix empty code
+        }
+    }
 
     std::string encoded_data;
     for (char c : data)
@@ -226,7 +247,19 @@ void huffmanCompress::decodeFile(const std::string &inputFilePath)
 
     char num_unique;
     input.get(num_unique);
-    // std::cout << (int)num_unique << std::endl;
+    // if the file is empty
+    if (num_unique == 0)  
+    {
+        std::string outputFilePath = "huff_" + inputFilePath.substr(0, inputFilePath.size() - 5);
+        std::ofstream output(outputFilePath, std::ios::binary);
+        if (!output.is_open()) {
+            throw std::runtime_error("Failed to create empty output file!");
+        }
+        
+        output.close();
+        std::cout << "Decoded empty file." << std::endl;
+        return;
+    }
 
     // building a tree from the metadata
     std::map<std::string, char> CodeWithChar;
@@ -328,6 +361,13 @@ std::string huffmanCompress::compressFileUtil(const std::string &inputFilePath)
         data += c;
     }
 
+    if (data.empty())
+    {
+        std::string output;
+        output += (char)0;
+        return output;
+    }
+
     input.close();
 
     // map for the chars with their respective codes
@@ -335,6 +375,14 @@ std::string huffmanCompress::compressFileUtil(const std::string &inputFilePath)
 
     // build a huffman tree with the data in the file
     buildTree(data, charWithCode);
+    
+    // check if there is just one type of char in the file
+    if (charWithCode.size() == 1) {
+        auto& entry = *charWithCode.begin();
+        if (entry.second.empty()) {
+            entry.second = "0"; 
+        }
+    }
 
     std::string encoded_data;
     for (char c : data)
@@ -379,10 +427,7 @@ std::string huffmanCompress::compressFileUtil(const std::string &inputFilePath)
 
     std::cout << "Finished compression! " << inputFilePath << std::endl;
 
-    std::string output;
-    // output += in.size();
-    output += in;
-    return output;
+    return in;
 }
 // the inputFilePath is the string with all the compressed code in it
 size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const std::string &outputFilePath, int pos = 0)
@@ -398,6 +443,12 @@ size_t huffmanCompress::decodeFileUtil(const std::string &compressedData, const 
     char num_unique = compressedData[pos];
     pos++;
 
+    if (num_unique == 0)  
+    {
+        output.close();
+        return pos;
+    }
+    
     // building a tree from the metadata
     std::map<std::string, char> CodeWithChar;
     for (size_t i = 0; i < num_unique; i++)
@@ -588,11 +639,11 @@ int main()
     // h.buildTree("AAABBBBBCCCCCCDDDDEE");
 
     // h.printCodes();
-    // h.compressFile("brah.txt");
-    // h.decodeFile("brah.txt.huff");
+    // h.compressFile("test.txt");
+    // h.decodeFile("test.txt.huff");
 
-    // h.compressFolder("scrape");
-    h.decodeFolder("scrape.huff");
+    h.compressFolder("test");
+    h.decodeFolder("test.huff");
 
     return 0;
 }
